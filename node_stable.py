@@ -134,7 +134,7 @@ class ChordNode(object):
         #print "--Updated successor to '"+ str(self.succ) +"' ."
         #print "--Updated predecessor to '"+ str(self.pred) +"' ."
         data = json.loads(body)
-        print data
+        #print data
         if data['pred'] != 'None':
             self.succ = data['pred']
         x = data['x']
