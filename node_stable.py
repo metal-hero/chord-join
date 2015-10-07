@@ -12,9 +12,9 @@ def between(p_k, p_m, p_n):
         return False
     if p_k == 'None' or p_m == 'None' or p_n == 'None':
         return False
-    k = int(p_k)
-    m = int(p_m)
-    n = int(p_n)
+    k = ring_hash(str(p_k))
+    m = ring_hash(str(p_m))
+    n = ring_hash(str(p_n))
     if m == n:
         return True
     r = 64
