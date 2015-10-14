@@ -6,12 +6,16 @@ import hashlib
 import threading
 import time
 import copy
+import pickle
 
 def between(p_k, p_m, p_n):
     if p_k is None or p_m is None or p_n is None:
         return False
     if p_k == 'None' or p_m == 'None' or p_n == 'None':
         return False
+    #k = ring_hash(str(p_k))
+    #m = ring_hash(str(p_m))
+    #n = ring_hash(str(p_n))
     k = int(str(p_k))
     m = int(str(p_m))
     n = int(str(p_n))
@@ -21,7 +25,7 @@ def between(p_k, p_m, p_n):
     return (m==n or (k<m or k>m)) and (k-m)%2**r <= (n-m)%2**r
 
 def ring_hash(s):
-    m = 64
+    m = 6
     digest = hashlib.sha1(s).hexdigest()
     return int(digest, 16) % pow(2,m)
 
@@ -32,11 +36,18 @@ parameters = pika.ConnectionParameters(
         pika.PlainCredentials('guest','guest'))
 
 class ChordNode(object):
+    m = 6
     def __init__(self, node_id, known_id):
 
         self.pred = None
         self.node_id = str(node_id)
         self.succ = None
+
+        self.M = 2**self.m
+        self.fingers = []
+        for i in range(0,self.m):
+            self.fingers.append(None)
+        self.nextval = 0
 
         # setup channel
         connection = pika.BlockingConnection(parameters)
@@ -68,45 +79,85 @@ class ChordNode(object):
             '''print "Listening"
         else:'''
         print "Searching"
+        data = {'curr': str(self.node_id), 'i': str(0)}
         channel.basic_publish(exchange='',
                               routing_key='findsucc' + str(known_id),
-                              body=str(self.node_id))
+                              body=json.dumps(data))
 
         channel.start_consuming()
 
+    def fix_fingers(self, channel):
+        for i in range(0,self.m):
+            key = (int(self.node_id) + 2**i)%self.M
+            data = {'curr': str(self.node_id), 'i': str(i)}
+            channel.basic_publish(exchange='',
+                              routing_key='findsucc' + str(key),
+                              body=json.dumps(data))
+        print self.fingers
+
+    '''def fix_fingers(self, allofthem=False):
+        # MyTrace(0,  "fixing fingers")
+        if allofthem:
+            for i in range(0,self.m):
+                self.finger[i] = self.find_successor((self.id + 2**i)%self.M)
+                if self.fingers[i] is not None and self.fingers[i].id == self.id:
+                    self.fingers[i] = None
+        else:
+            self.nextval = self.nextval + 1
+            if (self.nextval >= self.m):
+                self.nextval = 0
+            self.fingerss[self.nextval] = self.find_successor((self.id + 2**self.nextval)%self.M)
+            if self.finger[self.nextval] is not None and self.fingers[self.nextval].id == self.id:
+                    self.fingers[self.nextval] = None
+
+        print 'fingers fixed'
+        for i in range(0,self.m):
+            if self.finger[i] is not None:
+                print 'finger', i, self.finger[i].id
+            else:
+                print 'finger', i, self.finger[i]
+        '''
+
+
 
     def findsucc_callback(self, channel, _, _2, body):
-        #print "body /" + str(body)
-        #print "this node /" + str(self.node_id)
-        #print "my succ node /" + str(self.succ)
-        if between(body, self.node_id, self.succ):
-            #print "smth"
-            data = {'next': self.succ, 'curr': self.node_id}
+        print "body /" + str(body)
+        print "this node /" + str(self.node_id)
+        print "my succ node /" + str(self.succ)
+        data = json.loads(body)
+        pred = data['curr']
+        if between(pred, self.node_id, self.succ):
+            print "smth"
+            data = {'next': self.succ, 'curr': self.node_id, 'i':data['i']}
             channel.basic_publish(exchange='',
-                                  routing_key='heresucc'+str(body),
+                                  routing_key='heresucc'+str(pred),
                                   body=json.dumps(data))
-            #print "between"
+            print "between"
         else:
             channel.basic_publish(exchange='',
                                   routing_key='findsucc'+str(self.succ),
                                   body=str(body))
-            #print "not between"
+            print "not between"
 
 
     def heresucc_callback(self, channel, _, _2, body):
+        print 'heresucc body/' + str(body)
         data = json.loads(body)
         self.succ = data['next']
-        curr = data['curr']
+        self.fingers[int(data['i'])] = data['next']
+        pred = data['curr']
 
-        if curr != 'none':
-            data = {'next': self.node_id, 'curr': 'none'}
+        self.fix_fingers(channel)
+
+        if pred != 'none':
+            data = {'next': self.node_id, 'curr': 'none', 'i':data['i']}
             channel.basic_publish(exchange='',
-                                  routing_key='heresucc'+str(curr),
+                                  routing_key='heresucc'+str(pred),
                                   body=json.dumps(data))
             threading.Thread(target=self.start_stabilise).start()
-        #print "body /" + str(body)
-        #print "this node /" + str(self.node_id)
-        #print "my succ node /" + str(self.succ)
+        print "body /" + str(body)
+        print "this node /" + str(self.node_id)
+        print "my succ node /" + str(self.succ)
 
 
     def findpred_callback(self, channel, _, _2, body):
@@ -115,7 +166,7 @@ class ChordNode(object):
         #print "find my pred node /" + str(self.pred)
         data = {'pred': 'None', 'x': str(self.pred)}
         if between(self.pred, body, self.node_id):
-            data = {'pred': str(self.pred), 'x': str(self.pred)}
+            data['pred'] = 'None'
         channel.basic_publish(exchange='',
                                   routing_key='herepred'+str(body),
                                   body=json.dumps(data))
@@ -145,7 +196,8 @@ class ChordNode(object):
         print "Updated successor to '"+ str(self.succ) +"' ."
         print "Updated predecessor to '"+ str(self.pred) +"' ."
 
-    '''def notify(self,n):
+    '''
+    def notify(self,n):
         if between(n,self.pred,self.node_id) or (self.pred is None):
             self.pred = n
 
@@ -170,6 +222,7 @@ class ChordNode(object):
         connection = pika.BlockingConnection(parameters)
         channel = connection.channel()
         self.loop_stabilise(channel)
+
 
 
 
