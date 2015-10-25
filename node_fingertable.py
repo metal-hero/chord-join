@@ -5,7 +5,6 @@ import json
 import hashlib
 import threading
 import time
-import copy
 import random
 
 def between(p_k, p_m, p_n):
@@ -23,6 +22,7 @@ def between(p_k, p_m, p_n):
     if m == n:
         return True
     return (m==n or (k<m or k>m)) and (k-m)%2**r <= (n-m)%2**r
+
 
 def strictly_between(p_k, p_m, p_n):
     r = 6
@@ -43,16 +43,19 @@ def strictly_between(p_k, p_m, p_n):
     else:
         False
 
+
 def ring_hash(s):
     m = 6
     digest = hashlib.sha1(s).hexdigest()
     return int(digest, 16) % pow(2,m)
+
 
 parameters = pika.ConnectionParameters(
         'localhost',
         5672,
         '/',
         pika.PlainCredentials('guest','guest'))
+
 
 class ChordNode(object):
     m = 6
@@ -79,15 +82,15 @@ class ChordNode(object):
         channel.basic_consume(self.findsucc_callback,
                               queue='findsucc' + str(node_id),
                               no_ack=True)
-        #channel.basic_consume(self.findpred_callback,
-        #                      queue='findpred' + str(node_id),
-        #                      no_ack=True)
-        #channel.basic_consume(self.herepred_callback,
-        #                      queue='herepred' + str(node_id),
-        #                      no_ack=True)
-        #channel.basic_consume(self.notify_callback,
-        #                      queue='notify' + str(node_id),
-        #                      no_ack=True)
+        channel.basic_consume(self.findpred_callback,
+                             queue='findpred' + str(node_id),
+                             no_ack=True)
+        channel.basic_consume(self.herepred_callback,
+                             queue='herepred' + str(node_id),
+                             no_ack=True)
+        channel.basic_consume(self.notify_callback,
+                             queue='notify' + str(node_id),
+                             no_ack=True)
         if str(node_id) == str(known_id):
             self.fingers[0] = str(node_id)
             self.pred = str(node_id)
@@ -99,6 +102,7 @@ class ChordNode(object):
                               routing_key='findsucc' + str(known_id),
                               body=json.dumps(data))
         channel.start_consuming()
+
 
     def closest_preceding_finger(self, id):
         for i in range(self.m-1,-1,-1):
@@ -144,7 +148,6 @@ class ChordNode(object):
             channel.basic_publish(exchange='',
                                   routing_key='heresucc'+str(pred),
                                   body=json.dumps(data))
-
         # print "heresucc body/" + str(body)
         # print "heresucc this node/" + str(self.node_id)
         # print "heresucc my succ node/" + str(self.fingers[0])
@@ -180,6 +183,7 @@ class ChordNode(object):
         print "Updated successor to '"+ str(self.fingers[0]) +"' ."
         print "Updated predecessor to '"+ str(self.pred) +"' ."
 
+    # Pseudo code which helps to me !!!!
     '''
     def fix_fingers(self, allofthem=False):
         # MyTrace(0,  "fixing fingers")
@@ -229,6 +233,7 @@ class ChordNode(object):
                               routing_key='findsucc' + str(self.fingers[0]),
                               body=json.dumps(data))
 
+
     def loop_stabilise(self,channel):
         while True:
             #print "loop stabilise self /" + str(self.node_id)
@@ -239,6 +244,7 @@ class ChordNode(object):
             time.sleep(15)
             self.fix_fingers(channel)
             time.sleep(5)
+
 
     def start_stabilise(self):
         # create new connection and channel
