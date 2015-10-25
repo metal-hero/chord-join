@@ -5,9 +5,16 @@ import json
 import hashlib
 
 def between(p_k, p_m, p_n):
-    k = int(p_k)
-    m = int(p_m)
-    n = int(p_n)
+    if p_k is None or p_m is None or p_n is None:
+        return False
+    if p_k == 'None' or p_m == 'None' or p_n == 'None':
+        return False
+    # k = int(p_k)
+    # m = int(p_m)
+    # n = int(p_n)
+    k = ring_hash(p_k)
+    m = ring_hash(p_m)
+    n = ring_hash(p_n)
     if m == n:
         return True
     r = 64
@@ -73,8 +80,8 @@ class ChordNode(object):
         self.succ = data['next']
         prev = data['prev']
 
-        if prev != 'none':
-            data = {'next': self.node_id, 'prev': 'none'}
+        if prev != 'None':
+            data = {'next': self.node_id, 'prev': 'None'}
             channel.basic_publish(exchange='',
                                   routing_key='heresucc'+prev,
                                   body=json.dumps(data))
