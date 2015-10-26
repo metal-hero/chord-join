@@ -30,6 +30,7 @@ def strictly_between(p_k, p_m, p_n):
         return False
     if p_k == 'None' or p_m == 'None' or p_n == 'None':
         return False
+
     k = ring_hash(str(p_k))
     m = ring_hash(str(p_m))
     n = ring_hash(str(p_n))
@@ -41,7 +42,7 @@ def strictly_between(p_k, p_m, p_n):
     elif m!=n and (k-m)%2**r < (n-m)%2**r:
         return True
     else:
-        False
+        return False
 
 
 def ring_hash(s):
@@ -83,14 +84,14 @@ class ChordNode(object):
                               queue='findsucc' + str(node_id),
                               no_ack=True)
         channel.basic_consume(self.findpred_callback,
-                             queue='findpred' + str(node_id),
-                             no_ack=True)
+                              queue='findpred' + str(node_id),
+                              no_ack=True)
         channel.basic_consume(self.herepred_callback,
-                             queue='herepred' + str(node_id),
-                             no_ack=True)
+                              queue='herepred' + str(node_id),
+                              no_ack=True)
         channel.basic_consume(self.notify_callback,
-                             queue='notify' + str(node_id),
-                             no_ack=True)
+                              queue='notify' + str(node_id),
+                              no_ack=True)
         if str(node_id) == str(known_id):
             self.fingers[0] = str(node_id)
             self.pred = str(node_id)
@@ -106,8 +107,8 @@ class ChordNode(object):
 
     def closest_preceding_finger(self, id):
         for i in range(self.m-1,-1,-1):
-            if strictly_between(self.finger[i],self.node_id,id):
-                return self.finger[i]
+            if strictly_between(self.fingers[i],self.node_id,id):
+                return self.fingers[i]
         return self.node_id
 
 
@@ -118,7 +119,7 @@ class ChordNode(object):
         data = json.loads(body)
         pred = str(data['curr'])
         # key = (int(pred)+2**(int(data['i'])))%2**self.m
-        key = (ring_hash(str(pred))+2**(ring_hash(str(data['i']))))%2**self.m
+        key = (int(str(pred))+2**(int(str(data['i']))))%2**self.m
         if between(key, self.node_id, self.fingers[0]):
             print "smth"
             data = {'next': self.fingers[0], 'curr': self.node_id, 'i':data['i']}
